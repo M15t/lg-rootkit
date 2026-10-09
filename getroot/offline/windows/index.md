@@ -5,11 +5,11 @@ Setup dualbro offline
 
 via 
 
-[iis](iis/)
+[iis (Hard)](iis/)
 
 or
 
-[msys2](msys2/)
+[msys2 (Easy)](msys2/)
 
 Open http://localhost:50000 in your browser
 

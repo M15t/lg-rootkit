@@ -6,4 +6,4 @@
 
 [Windows Guide](windows)
 
-if you think guide that in here sucks then see [Slada's rooting guide](https://tv.slada.sk/guides/rooting-guide)
+If you think guide that in here sucks then see [Slada's rooting guide](https://tv.slada.sk/guides/rooting-guide)
