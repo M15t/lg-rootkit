@@ -41,4 +41,4 @@ Click on the msys2 window
 
  ```
 
- Type the command you got from `ifconfig` when it asked `What is the ip/local network domain of this device :`
+Type the ip you got from `ifconfig` when it asked `What is the ip/local network domain of this device :`
