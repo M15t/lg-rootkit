@@ -11,6 +11,8 @@ or
 
 [msys2 (Easy)](msys2/)
 
+Setup [firewall](firewall/)
+
 Open http://localhost:50000 in your browser
 
 ![here](a.png)
