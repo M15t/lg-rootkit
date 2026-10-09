@@ -5,6 +5,8 @@ Open msys2
 
 Run those command as below :
 
+(See [here](https://stackoverflow.com/questions/53988638/git-fatal-protocol-https-is-not-supported) if you have issue on copy and paste.)
+
 ```
 pacman -S  python git which
 
