@@ -92,8 +92,7 @@
     var targetDir = '/media/internal/downloads';
     var hackperm = [
 {"inputParams" : "meow nya :3 /usr/palm/services/com.webos.service.secondscreen.gateway -- /tmp/cgroup QwQ " + targetDir},
-{"inputParams": "-- /tmp/cgroup QwQ " + targetDir},
-{"inputParams": "QwQ -- /tmp/cgroup /usr/palm/services/com.webos.service.secondscreen.gateway " + targetDir},
+
     ];
 
     function setState(name, detail) {
@@ -120,10 +119,16 @@
     }
       function afterhackjserver(payload) {
           var parsed = parse(payload);
+          if ( typeof(parsed.error) === 'string' && parsed.error.includes("trusted locations")  ) {
+		  if (hackperm.length===hackatt+1){
 
-	      if ( parsed.returnValue === false) {
-if (hackperm.length===hackatt+1){
-
+            failStep('jsserver', 'jsserver is patched.Workarounds are patched');
+		  } else {
+            setState('warning', 'jsserver is patched.Trying workaround...');
+		  hackatt=hackatt+1;
+	hackjserver();
+		  }
+	  } else if ( parsed.returnValue === false) {
   if (typeof(parsed.error) === 'undefined'){
             failStep('jsserver', parsed.errorText );
 		   }else if (typeof(parsed.errorText) === 'undefined'){
@@ -133,14 +138,6 @@ if (hackperm.length===hackatt+1){
             failStep('jsserver', 'jsserver call failed');
 
 		   }
-} else {
-            setState('warning', 'jsserver call failed.Trying other ways...');
-		  hackatt=hackatt+1;
-	hackjserver();
-		  }
-
-
-		   
 	  } else {
             setState('success', 
    'Yippee root exploit is worky!!!Setting homebrew up...');
