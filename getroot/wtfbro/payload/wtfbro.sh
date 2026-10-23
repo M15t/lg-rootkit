@@ -8,22 +8,19 @@ LOGFILE="/tmp/wtfbro-root.log"
 APPID="com.webos.service.secondscreen.gateway"
 SCRIPT_NAME="WTFBro"
 
-TELNETD_URL="${TELNETD_URL:-https://github.com/webosbrew/webos-homebrew-channel/raw/refs/heads/main/services/bin/telnetd}"
-TELNETD_TMP="/tmp/telnetd"
-IPK_URL="${IPK_URL:-https://github.com/webosbrew/webos-homebrew-channel/releases/download/v0.7.3/org.webosbrew.hbchannel_0.7.3_all.ipk}"
-IPK_TMP="/tmp/hbchannel.ipk"
+# Homebrew Channel v0.7.3, downloaded by offline/setup.sh from:
+# https://github.com/webosbrew/webos-homebrew-channel/releases/download/v0.7.3/org.webosbrew.hbchannel_0.7.3_all.ipk
+IPK_SHA256="d10bf3c753551d7c72fb7a92b20fcd2317e502a220ac668ba8e76f6ea78b363c"
 LUNA_FIFO="/tmp/wtfbro-root.fifo"
 
 HBC_SERVICE="/media/developer/apps/usr/palm/services/org.webosbrew.hbchannel.service/elevate-service"
 STARTUP_SRC="/media/developer/apps/usr/palm/services/org.webosbrew.hbchannel.service/startup.sh"
+TELNET_DISABLED_FLAG="/var/luna/preferences/webosbrew_telnet_disabled"
 
 error_reason=""
 devmode_state="unknown"
 hbc_state="unknown"
-telnetdrun="false"
 devmode_removed=0
-
-trap 'rm -fr "$(dirname "$0")/debug"' EXIT
 
 # ---------- logging / UI ----------
 
@@ -133,23 +130,28 @@ check_hbc_installed() {
 }
 
 prepare_hbc_ipk() {
-    if [ -e "$(dirname "$0")/hbc.ipk" ]
-    then
+    local checksum=""
     IPK_TMP="$(realpath "$(dirname "$0")")/hbc.ipk"
-    log "Homebrew Channel IPK is found."
-    return 0
+    if [ ! -f "$IPK_TMP" ]; then
+        error_reason="Local Homebrew Channel IPK is missing; run offline/setup.sh on the server"
+        log "$error_reason"
+        return 1
     fi
-
-    log "Downloading Homebrew Channel IPK from ${IPK_URL}."
-    send_toast "Downloading Homebrew Channel..."
-    rm -f "$IPK_TMP" 2>>"$LOGFILE"
-    if curl -L -o "$IPK_TMP" -- "$IPK_URL" >>"$LOGFILE" 2>&1; then
-        log "IPK downloaded successfully."
-        return 0
+    if command -v sha256sum >/dev/null 2>&1; then
+        checksum="$(sha256sum "$IPK_TMP")" || checksum=""
+    elif command -v shasum >/dev/null 2>&1; then
+        checksum="$(shasum -a 256 "$IPK_TMP")" || checksum=""
+    else
+        error_reason="SHA-256 verification is unavailable; installation stopped"
+        log "$error_reason"
+        return 1
     fi
-    error_reason="Failed to download Homebrew Channel IPK"
-    log "Failed to download IPK."
-    return 1
+    if [ "${checksum%% *}" != "$IPK_SHA256" ]; then
+        error_reason="Homebrew Channel IPK SHA-256 mismatch; installation stopped"
+        log "$error_reason"
+        return 1
+    fi
+    log "Homebrew Channel v0.7.3 IPK SHA-256 verified."
 }
 
 restart_appinstalld() {
@@ -195,8 +197,6 @@ ensure_hbc_installed() {
     fi
 
     log "Homebrew Channel missing; attempting installation."
-    prepare_hbc_ipk || return 1
-
     # Give appinstalld more sec
     # for making sure it would reload properly
     for attempt in 1 2 3 4 5 6 7 8 9 10 ; do
@@ -212,6 +212,23 @@ ensure_hbc_installed() {
     done
 }
 
+disable_hbc_telnet() {
+    local telnet_binary="$(dirname "$HBC_SERVICE")/bin/telnetd"
+    if [ ! -f "$telnet_binary" ]; then
+        error_reason="Cannot disable Homebrew Channel Telnet: bundled binary not found"
+        log "$error_reason"
+        return 1
+    fi
+    # The preference disables normal startup; failsafe ignores it and directly
+    # executes this binary, so remove every execute bit before elevation.
+    if ! touch "$TELNET_DISABLED_FLAG" || ! chmod a-x "$telnet_binary"; then
+        error_reason="Failed to disable Homebrew Channel Telnet; elevation stopped"
+        log "$error_reason"
+        return 1
+    fi
+    log "Homebrew Channel normal and failsafe Telnet disabled."
+}
+
 run_elevation() {
     log "Executing elevate-service."
     "$HBC_SERVICE" >>"$LOGFILE" 2>&1 || {
@@ -222,70 +239,9 @@ run_elevation() {
     log "elevate-service completed."
 }
 
-start_telnet() {
-	local wheretelnet failure
-	local reason="$1"
-	local prefix=""
-	log "Trying to start telnetd."
-	if [ "$reason" = "debug" ]
-	then
-	prefix="Debug Mode - "
-	fi
-        if [ -e "$(dirname "$0")/telnetd" ]
-	then
-	wheretelnet="$(dirname "$0")/telnetd"
-	chmod +x "$(dirname "$0")/telnetd"
-	else
-    	wheretelnet="$(which telnetd)"
-	fi
-	if [ -n "$wheretelnet" ]
-	then
-		log "Found telnetd in $wheretelnet"
-		send_toast "${prefix}Starting up telnetd..."
-		"$wheretelnet" -p 2323 -l /bin/sh &
-		telnetdrun="true"
-	else
-		log "Telnetd not found"
-		if download_telnetd
-		then
-			send_toast "${prefix}Starting up telnetd..."
-			/tmp/telnetd -p 2323 -l /bin/sh &
-			telnetdrun="true"
-		else
-		failure="Failed to download telnet"
-		fi
-	fi
-	if [ $telnetdrun = "true" ]
-	then
-	send_toast "Temporal root shell is seted up on telnet which is on port 2323..."
-	else
-		if [ -n "$failure" ]
-		then
-			send_toast "Telnetd failed to start,Reason: ${reason}"
-		else
-			send_toast "Telnetd failed to start."
-		fi
-	fi
-	return 0
-}
-
-download_telnetd() {
-    log "Downloading telnetd from ${TELNETD_URL}."
-    send_toast "Downloading telnetd..."
-    rm -f "$TELNETD_TMP" 2>>"$LOGFILE"
-    if curl -L -o "$TELNETD_TMP" -- "$TELNETD_URL" >>"$LOGFILE" 2>&1; then
-	chmod +x "$TELNETD_TMP"
-        log "telnetd downloaded successfully."
-        return 0
-    fi
-    error_reason="Failed to download telnetd"
-    log "Failed to download telnetd."
-    return 1
-}
-
 show_final_alert() {
 	local outcome="$1"  # "success" or "failure"
-	local base_msg base_instruction extra_msg ultraextra_msg message buttons
+	local base_msg base_instruction extra_msg message buttons
 
     if [ "$outcome" = "success" ]; then
         base_msg="${SCRIPT_NAME} Root setup complete. TV status :"
@@ -305,25 +261,7 @@ show_final_alert() {
             base_msg="${SCRIPT_NAME} Root setup failed."
         [ -n "$error_reason" ] && base_msg="${base_msg}<br>Error: ${error_reason}."
 	base_msg="${base_msg}<br>Check /tmp/wtfbro-root.log for details."
-	if [ "$telnetdrun" != "true" ]
-	then
-	start_telnet "failure"
-	fi
     fi
-	if [ "$telnetdrun" = "true" ]
-	then
-
-	if [ "$outcome" = "success" ]
-	then
-	ultraextra_msg="Debug mode : Temporal root shell is seted up on telnet which is on port 2323"
-	else
-	ultraextra_msg="Temporal root shell is seted up on telnet which is on port 2323"
-	ultraextra_msg="${ultraextra_msg}<br>You may able to fix the root setup manully."
-	fi
-
-	else
-	ultraextra_msg=""
-	fi
 
     case "$devmode_state" in
         true)
@@ -337,14 +275,6 @@ show_final_alert() {
             ;;
     esac
 
-if [ -n "$ultraextra_msg" ] && [ -n "$extra_msg" ]
-then
-extra_msg="${extra_msg}<br>${ultraextra_msg}"
-elif [ -n "$ultraextra_msg" ] 
-then
-extra_msg="${ultraextra_msg}"
-fi
-
     # Reboot shortcut only when root is confirmed set up and devmode app is absent
     if [ "$outcome" = "success" ] && [ "$devmode_state" = "false" ]; then
         buttons='[{"label":"Reboot now","onclick":"luna://com.webos.service.sleep/shutdown/machineReboot","params":{"reason":"remoteKey"}},{"label":"Don'\''t reboot"}]'
@@ -353,7 +283,7 @@ fi
     fi
     # webos 5 createAlert dialog dont have much vertical space
     # so it dont support too many  lines of text
-    # thus extra_msg and ultraextra_msg would get cut off in webos 5
+    # thus extra_msg would get cut off in webos 5
     # if the mesage hass too many lines of text.
     # webos 26 diglog has more more vertical space then webos 5 humm
         message="${base_msg}<br>${base_instruction}" 
@@ -387,12 +317,10 @@ else
     log "webOS version: unavailable"
 fi
 
-if [ -e "$(dirname "$0")/debug" ]
-then
-start_telnet "debug"
-fi
+prepare_hbc_ipk         || { show_final_alert "failure"; exit 1; }
 enable_devmode          || { show_final_alert "failure"; exit 1; }
 ensure_hbc_installed    || { show_final_alert "failure"; exit 1; }
+disable_hbc_telnet      || { show_final_alert "failure"; exit 1; }
 devmode_state="$(get_devmode_state)"
 log "Dev Mode app state: ${devmode_state}"
 run_elevation           || { show_final_alert "failure"; exit 1; }

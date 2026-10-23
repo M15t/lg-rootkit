@@ -13,7 +13,9 @@ or
 
 Setup [firewall](firewall/)
 
-Open http://localhost:50000 in your browser
+Open `http://<server-LAN-IP>:50000/` in your browser, using the PC address
+reachable from the TV. Loopback addresses such as `localhost` are blocked
+because the TV must download the payload from this same address.
 
 ![here](a.png)
 

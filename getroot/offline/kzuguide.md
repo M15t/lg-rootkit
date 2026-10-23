@@ -18,9 +18,10 @@ Link: https://github.com/uazo/cromite
 
 **Step 4:** Open termux and type `pkg update && pkg upgrade`
 
-**Step 5:** Type this in termux: `pkg install -y git python which && git clone https://github.com/exkc/e.nya.je/ && cd e.nya.je/getroot/offline && sh setup.sh`
+**Step 5:** Type this in termux: `pkg install -y git python curl coreutils && git clone https://github.com/M15t/rootkit.git && cd rootkit/getroot/offline && sh setup.sh`
 
-**Step 6:** Open Cromite and go to the link: http://127.0.0.1:50000/
+**Step 6:** Open Cromite and go to `http://<phone-P2P-IP>:50000/`, using the
+phone address from Step 3 so the TV can download payload files from it.
 
 **Step 7:** Type your webOS version, and your TV IP in P2P
 

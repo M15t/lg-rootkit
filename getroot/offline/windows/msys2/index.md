@@ -8,11 +8,11 @@ Run those command as below :
 (See [here](https://stackoverflow.com/questions/53988638/git-fatal-protocol-https-is-not-supported) if you have issue on copy and paste.)
 
 ```
-pacman -S  python git which
+pacman -S python git curl coreutils
 
-git clone https://github.com/exkc/e.nya.je.git
+git clone https://github.com/M15t/rootkit.git
 
-cd e.nya.je/getroot/offline
+cd rootkit/getroot/offline
 
 chmod +x setup.sh
 

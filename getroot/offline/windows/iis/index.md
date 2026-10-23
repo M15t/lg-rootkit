@@ -29,7 +29,7 @@ After that click ok
 
 If it ask you to reboot then click reboot
 
-Open https://github.com/exkc/e.nya.je in your browser
+Open https://github.com/M15t/rootkit in your browser
 
 ![here](e.png)
 
@@ -41,7 +41,8 @@ You would see a pop up after clicking
 
 Click that in the pop up
 
-Open https://github.com/webosbrew/webos-homebrew-channel in your browser
+Download the pinned [Homebrew Channel v0.7.3 IPK](https://github.com/webosbrew/webos-homebrew-channel/releases/download/v0.7.3/org.webosbrew.hbchannel_0.7.3_all.ipk).
+The screenshots below show an older upstream release page.
 
 
 After that Click here
@@ -56,19 +57,16 @@ If you do then click here.
 
 Your browser will be starting to download a ipk file
 
-Open https://github.com/webosbrew/webos-homebrew-channel/blob/main/services/bin/telnetd in your browser
-
-![here](i.png)
-
-Click here
-
-Your browser will be starting to download a file call telnetd
-
 Check your download folder
 
 ![here](j.png)
 
-you should 3 file : telnetd file , a ipk file , a zip file
+You should have the IPK and the repository ZIP. No separate Telnet file is needed.
+
+Before using the IPK, run `certutil -hashfile <downloaded-file.ipk> SHA256`.
+The expected SHA-256 is
+`d10bf3c753551d7c72fb7a92b20fcd2317e502a220ac668ba8e76f6ea78b363c`.
+Stop if it does not match. The TV installer also verifies this hash before installation.
 
 Rename the ipk file into hbc.ipk like so 
 
@@ -86,7 +84,8 @@ Rename it into dualbro
 
 ![here](n.png)
 
-Copy those 2 file into the dualbro folder
+Copy `hbc.ipk` into `C:\inetpub\dualbro\wtfbro\payload\`.
+Ignore the Telnet file shown in the older screenshot.
 
 ![here](o.png)
 
@@ -161,9 +160,8 @@ go to C:/inetpub/dualbro and click all files in file type
 
 Select offline.json file
 
-Edit the file like so :
-
-(replace the 172.16.0.243 with your pc ip )
+Set the file contents to `{"offlinemode":true}`. The launcher uses its own
+server address for the payload; `offlinemodeip` in the older screenshot is ignored.
 
 ![here](aa.png)
 

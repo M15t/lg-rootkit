@@ -1,62 +1,57 @@
 #!/bin/sh
 cd "$(realpath "$(dirname "$0")")/.." || exit
 
-TELNETD_URL="${TELNETD_URL:-https://github.com/webosbrew/webos-homebrew-channel/raw/refs/heads/main/services/bin/telnetd}"
-IPK_URL="${IPK_URL:-https://github.com/webosbrew/webos-homebrew-channel/releases/download/v0.7.3/org.webosbrew.hbchannel_0.7.3_all.ipk}"
-YN=""
+IPK_URL="https://github.com/webosbrew/webos-homebrew-channel/releases/download/v0.7.3/org.webosbrew.hbchannel_0.7.3_all.ipk"
+IPK_SHA256="d10bf3c753551d7c72fb7a92b20fcd2317e502a220ac668ba8e76f6ea78b363c"
+IPK_FILE="./wtfbro/payload/hbc.ipk"
+
+verify_ipk() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        checksum="$(sha256sum "$1")" || return 1
+    else
+        checksum="$(shasum -a 256 "$1")" || return 1
+    fi
+    if [ "${checksum%% *}" != "$IPK_SHA256" ]; then
+        echo "Homebrew Channel IPK SHA-256 mismatch: $1" >&2
+        echo "Remove the invalid file and rerun setup to download the pinned release." >&2
+        return 1
+    fi
+    echo "Homebrew Channel v0.7.3 IPK SHA-256 verified."
+}
 
 download() {
-    
-    if [ -e "./wtfbro/payload/$1" ]
-    then
-    echo "$2 Found.Skiping Downloading..."
-    return 0
-    fi
-
-    if [ -z "$YN" ]
-    then
-   while true
-   do
-   echo 'Would you like to download some necessary file now? (y/n/yes/no) :'
-   #get rid of unknown operand msg
-   YN="QwQ"
-   read -r YN
-if [ "$YN" = "y" ] || [ "$YN" = "yes" ]
-then
-break
-elif [ "$YN" = "n" ] || [ "$YN" = "no" ]
-then
-cat << QwQ
-You may rerun this script for downloading those missing file.
-Also this script require internet to download necessary file.
-However You can run this script offline after those file is downloaded 
-This script would exit due to missing files.
-QwQ
-exit
-fi
-done
-    fi
-
-    echo "Downloading $2 from ${3}."
-    if curl -L -o "./wtfbro/payload/$1" -- "$3"
-    then
-        echo "$2 downloaded successfully."
+    if [ -f "$IPK_FILE" ]; then
+        verify_ipk "$IPK_FILE" || exit 1
         return 0
     fi
-    echo "Failed to download ${2}."
-    exit
+    while true; do
+        echo 'Download Homebrew Channel v0.7.3 now? (y/n) :'
+        read -r YN || exit 1
+        case "$YN" in
+            y|yes) break ;;
+            n|no) echo 'Missing local IPK; setup stopped.'; exit 1 ;;
+        esac
+    done
+    trap 'rm -f "$IPK_FILE.part"' EXIT
+    if ! curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
+        -o "$IPK_FILE.part" -- "$IPK_URL"; then
+        echo 'Failed to download Homebrew Channel IPK.' >&2
+        exit 1
+    fi
+    verify_ipk "$IPK_FILE.part" || exit 1
+    mv "$IPK_FILE.part" "$IPK_FILE" || exit 1
 }
 
 askip(){
 while true
 do
 echo 'What is the ip/local network domain of this device :'
-read -r IP
+read -r IP || exit 1
 if [ -z "$IP" ] || [ "$IP" = "0.0.0.0" ] || [ "$IP" = "127.0.0.1" ] || [ "$IP" = "localhost" ] 
 then
 echo "Invalid ip/local network domain.It shouldnt be empty/127.0.0.1/0.0.0.0/localhost"
 else
-echo '{"offlinemode":true,"offlinemodeip":"'"$IP"':50000"}'  > offline.json
+echo '{"offlinemode":true}' > offline.json
 break
 fi
 done
@@ -91,26 +86,20 @@ fi
 }
 
 checkdep() {
-if ! which curl > /dev/zero
-then
-echo "Curl not found Please install curl."
-exit
-fi
-if which python3 > /dev/zero  
-then
-SERVER="python3"
-fi
-
-if [ -z "$SERVER" ]
-then
-echo "Supported http server not found.Please install python"
-exit
-fi
-
+    for dependency in curl python3; do
+        if ! command -v "$dependency" >/dev/null 2>&1; then
+            echo "Required command not found: $dependency" >&2
+            exit 1
+        fi
+    done
+    if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+        echo 'Install sha256sum or shasum for SHA-256 verification.' >&2
+        exit 1
+    fi
+    SERVER="python3"
 }
 
 checkdep
-download "hbc.ipk" "Homebrew Channel IPK" "$IPK_URL"
-download "telnetd" "telnetd" "$TELNETD_URL"
+download
 askip
 runserver

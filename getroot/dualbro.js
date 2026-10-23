@@ -4,14 +4,16 @@ const logEl = $('log');
 const statusDot = $('statusDot');
 const statusText = $('statusText');
 const connectBtn = $('connectBtn');
+connectBtn.disabled = true;
 let advnotopened = true;
 
 const CONNECT_TIMEOUT_MS = 7000;
 const CLIENT_KEY_PREFIX = 'webos-ssap-client-key:';
 const debugMode = new URLSearchParams(window.location.search).has('debug');
-const jstargetUrl = 'https://raws0kil.github.io/jsbro-autoroot/resources/jsbro/';
-const dangtargetUrl = new URL('https://azoffshowy.github.io/dangbro/resources/dangbro/' + (debugMode ? '?debug' : ''), window.location.href).toString();
-let wtftargetUrl = new URL('https://e.nya.je/getroot/wtfbro' + (debugMode ? '?debug' : ''), window.location.href).toString();
+const payloadUrl = new URL('./wtfbro/', window.location.href);
+payloadUrl.searchParams.set('local', '');
+if (debugMode) payloadUrl.searchParams.set('debug', '');
+const wtftargetUrl = payloadUrl.toString();
 let targetUrl,broname, lunchpayload,appid,appname;
 
 const state = {
@@ -320,17 +322,8 @@ whichhhh="dang";
 } else {
 	whichhhh=whichapp.value;
 }
- if (whichbro.value==="dang"){
-    broname="Dangbro";
-    targetUrl=dangtargetUrl;
-   } else if (whichbro.value==="js") {
-    broname="Jsbro";
-    targetUrl=jstargetUrl;
-   } else {
-    broname="WTFBro";
-    targetUrl=wtftargetUrl;
-
-   }
+broname="WTFBro";
+targetUrl=wtftargetUrl;
 
 if (whichhhh==="dang") {
 
@@ -369,34 +362,30 @@ return
 
 function debugmgs() {
   debugLog('Dualbro','Debug mode — Verbose log enabled.');
- if (whichbro.value==="dang"){
-  debugLog('Dangbro','Debug mode — Log upload enabled.');
-   } else if (whichbro.value==="js") {
-  debugLog('Jsbro','Debug mode — Debug mode is non-existent.');
-   } else {
-  debugLog('WTFBro','Debug mode — Temporal root shell is on.');
-
-   }
-	
-
+  debugLog('WTFBro','Debug mode — Telnet is disabled.');
 }
 
 async function launchDangbro() {
-
-   if (state.launchStarted) return;
+  if (state.launchStarted) return;
   state.launchStarted = true;
   debugLog('request', {
     uri: 'ssap://system.launcher/launch',
     lunchpayload,
   });
-  const response = await bridge.request('ssap://system.launcher/launch', lunchpayload);
-  if (response.timeout) {
+  try {
+    const response = await bridge.request('ssap://system.launcher/launch', lunchpayload);
+    if (response.timeout) {
+      throw new Error(broname+' launch timed out :/');
+    }
+    if (response.type === 'error' || response.payload?.returnValue === false) {
+      throw new Error(broname + ' launch failed: ' + (response.error || response.payload?.errorText || 'request rejected'));
+    }
+    debugLog('response', response.payload || response);
+    setStatus('ok', 'Connected, launch sent');
+  } catch (error) {
     state.launchStarted = false;
-    throw new Error(broname+' launch timed out :/');
+    throw error;
   }
-
-  debugLog('response', response.payload || response);
-  setStatus('ok', 'Connected, launch sent');
 }
 
 bridge.addEventListener('open', () => {
@@ -487,7 +476,12 @@ await warnIfDangbeiOverlayMissing();
 });
 
 async function startConnect() {
-  
+  if (connectBtn.disabled) return;
+  const hostname = window.location.hostname;
+  if (/^127\./.test(hostname) || ['localhost', '[::1]', '0.0.0.0', '[::]'].includes(hostname)) {
+    log('error', 'Open this page using the server LAN IP or network address so the TV can download the local payload.');
+    return;
+  }
   if (tvip.value=="") {
     log('error', 'Please enter your tv\'s local ip');
     return;
@@ -584,44 +578,32 @@ window.location=window.location.protocol+'//'+window.location.host+window.locati
 
   
 (async () => {
-	const res = await fetch("offline.json");
-	const mine = await res.headers.get('Content-Type');
-    if (!(mine.includes('application/json'))) {
- openModal({
-	 title : "Error : Cant Fetch Config",
-    body: "",
-    hidePrimary:true,
-    hideHelp:true,
-    dismissLabel: 'Close',
-  });
-	    return;
+  try {
+    const res = await fetch('offline.json');
+    if (!res.ok || !(res.headers.get('Content-Type') || '').includes('application/json')) {
+      throw new Error('Could not load offline.json. Serve the getroot directory over HTTP.');
     }
-	  const config = await res.json();
-    console.log(typeof(config.offlinemode));
-	if (typeof(config.offlinemode) == "boolean" && config.offlinemode){
-wtftargetUrl = new URL('http://'+ config.offlinemodeip+'/wtfbro?local' + (debugMode ? '&debug' : ''), window.location.href).toString();
-	let notsupbro = document.querySelectorAll(".offlineunsup");
-	for (let i = 0; i < notsupbro.length; i++) {
-		notsupbro[i].remove();
-	}
-	}
-  setStatus('', 'Idle');
-	debugtoggle.checked=debugMode;
-	advtoggle.checked=(debugMode||config.offlinemode);
-	advtogglede.open=advtoggle.checked;
-	
-	if (debugMode||config.offlinemode) {
-		ssltoggle.checked=true;
-		advnotopened=false;
-	}
+    const config = await res.json();
+    if (typeof config.offlinemode !== 'boolean') {
+      throw new Error('offline.json must contain a boolean offlinemode value.');
+    }
+    setStatus('', 'Idle');
+    debugtoggle.checked = debugMode;
+    advtoggle.checked = debugMode || config.offlinemode;
+    advtogglede.open = advtoggle.checked;
 
-whichbro.addEventListener("change", debugmgs); 
-  log('boot', 'Dualbro is ready.Time to root to the TV :3');
-debugmgs();
-	
- openModal({
-	 title : "Welcome to Dualbro - A entry point for jsbro/dangbro/wtfbro !!!",
-    body:`Let me explain to how to use this page.
+    if (debugMode || config.offlinemode) {
+      ssltoggle.checked = true;
+      advnotopened = false;
+    }
+
+    connectBtn.disabled = false;
+    log('boot', 'Dualbro is ready.Time to root to the TV :3');
+    debugmgs();
+
+    openModal({
+      title: 'Welcome to Dualbro - Local WTFBro',
+      body:`Let me explain to how to use this page.
 First open settings and go to support then TV Information to check your webos version
 Then open this page on your tv's browser
 Next fill in WebOS Version
@@ -633,8 +615,19 @@ Next tick the ssl
 After that type your tv ip into TV IP
 Then Click Root the TV :3 to root the tv
 `,
-    hidePrimary:true,
-    hideHelp:true,
-    dismissLabel: 'Close',
-  });
+      hidePrimary: true,
+      hideHelp: true,
+      dismissLabel: 'Close',
+    });
+  } catch (error) {
+    setStatus('err', 'Configuration failed');
+    log('error', error instanceof Error ? error.message : String(error));
+    openModal({
+      title: 'Configuration failed',
+      body: 'Could not load offline.json. Check the local HTTP server and reload this page.',
+      hidePrimary: true,
+      hideHelp: true,
+      dismissLabel: 'Close',
+    });
+  }
 })();
